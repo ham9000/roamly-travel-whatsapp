@@ -86,6 +86,43 @@ This requires the official Meta WhatsApp Cloud API. A normal personal WhatsApp n
 
 Meta provides a temporary test number and token during development. For production, add and verify a business phone number and replace the temporary token with a permanent system-user access token.
 
+## Test with Twilio WhatsApp Sandbox
+
+Twilio's Sandbox provides end-to-end phone testing without registering a production business number.
+
+1. Create a Twilio trial account and open **Messaging → Try it out → Send a WhatsApp message**.
+2. Activate the Sandbox, then scan its QR code or send the displayed `join ...` message from your WhatsApp.
+3. Keep the bot running:
+
+   ```bash
+   npm run bot:dev
+   ```
+
+4. Keep ngrok running in a second terminal:
+
+   ```bash
+   ngrok http 3000
+   ```
+
+5. In Twilio's **Try out WhatsApp** screen, select **Inbound**. Choose the custom webhook option and enter:
+
+   ```text
+   https://your-ngrok-domain.ngrok-free.app/twilio/webhook
+   ```
+
+   Use HTTP `POST` if Twilio asks for the method.
+
+6. Copy the **Auth Token** from the Twilio Console into `.env`, and set the exact webhook URL:
+
+   ```env
+   TWILIO_AUTH_TOKEN=your-twilio-auth-token
+   TWILIO_WEBHOOK_URL=https://your-ngrok-domain.ngrok-free.app/twilio/webhook
+   ```
+
+7. Restart `npm run bot:dev`, then send `hello` to the Twilio Sandbox number. The Sandbox uses text commands instead of buttons: `PLAN`, `EXPLORE`, `HUMAN`, and `MENU`.
+
+When the ngrok domain changes, update both Twilio's webhook field and `TWILIO_WEBHOOK_URL`.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -96,6 +133,8 @@ Meta provides a temporary test number and token during development. For producti
 | `WHATSAPP_PHONE_NUMBER_ID` | Meta identifier for the sending number |
 | `META_APP_SECRET` | Validates that webhook requests came from Meta |
 | `META_GRAPH_API_VERSION` | Graph API version enabled for the Meta app |
+| `TWILIO_AUTH_TOKEN` | Validates incoming Twilio Sandbox webhooks |
+| `TWILIO_WEBHOOK_URL` | Exact public Twilio webhook URL used for validation |
 | `PORT` | Backend HTTP port; defaults to `3000` |
 
 Never commit `.env` or any Meta access token. The repository ignores local environment files.

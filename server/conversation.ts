@@ -36,6 +36,15 @@ export class ConversationManager {
   handle(userId: string, input: string, name?: string): BotReply[] {
     const message = input.trim()
     const normalized = message.toLowerCase()
+    const command =
+      {
+        plan: 'plan_trip',
+        'plan a trip': 'plan_trip',
+        explore: 'explore_trips',
+        'explore trips': 'explore_trips',
+        human: 'talk_to_human',
+        'talk to a person': 'talk_to_human',
+      }[normalized] ?? normalized
 
     if (
       !message ||
@@ -50,7 +59,7 @@ export class ConversationManager {
       trip: {},
     }
 
-    if (normalized === 'plan_trip') {
+    if (command === 'plan_trip') {
       conversation.step = 'destination'
       conversation.trip = {}
       this.conversations.set(userId, conversation)
@@ -62,7 +71,7 @@ export class ConversationManager {
       ]
     }
 
-    if (normalized === 'explore_trips') {
+    if (command === 'explore_trips') {
       this.conversations.set(userId, { step: 'idle', trip: {} })
       return [
         {
@@ -84,7 +93,7 @@ export class ConversationManager {
       ]
     }
 
-    if (normalized === 'talk_to_human') {
+    if (command === 'talk_to_human') {
       conversation.step = 'human'
       this.conversations.set(userId, conversation)
       return [
@@ -95,7 +104,7 @@ export class ConversationManager {
       ]
     }
 
-    if (normalized === 'start_over') {
+    if (command === 'start_over') {
       this.conversations.set(userId, { step: 'idle', trip: {} })
       return [menuReply(name)]
     }

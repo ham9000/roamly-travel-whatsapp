@@ -52,3 +52,12 @@ test('stops automated replies after human handoff', () => {
   assert.match(handoff[0]?.body ?? '', /travel expert/)
   assert.deepEqual(followUp, [])
 })
+
+test('accepts text commands used by the Twilio sandbox', () => {
+  const conversations = new ConversationManager()
+  const user = '15550000005'
+
+  const planReply = conversations.handle(user, 'PLAN')
+
+  assert.match(planReply[0]?.body ?? '', /Where would you like to go/)
+})

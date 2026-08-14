@@ -2,41 +2,43 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import dotenv from 'dotenv'
 import express from 'express'
 import { ConversationManager } from './conversation.js'
+import {
+  createTwilioResponse,
+  validateTwilioRequest,
+} from './twilio.js'
 import type { IncomingMessage, WhatsAppWebhook } from './types.js'
 import { WhatsAppClient } from './whatsapp.js'
 
 dotenv.config()
 
-const requiredEnvironment = [
-  'WHATSAPP_VERIFY_TOKEN',
-  'WHATSAPP_ACCESS_TOKEN',
-  'WHATSAPP_PHONE_NUMBER_ID',
-] as const
-
-for (const name of requiredEnvironment) {
-  if (!process.env[name]) {
-    throw new Error(`Missing required environment variable: ${name}`)
-  }
-}
-
-if (process.env.NODE_ENV === 'production' && !process.env.META_APP_SECRET) {
-  throw new Error('META_APP_SECRET is required in production')
-}
-
 const port = Number.parseInt(process.env.PORT ?? '3000', 10)
-const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN!
+const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN ?? ''
 const appSecret = process.env.META_APP_SECRET ?? ''
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? ''
+const twilioWebhookUrl = process.env.TWILIO_WEBHOOK_URL ?? ''
 const conversations = new ConversationManager()
-const whatsapp = new WhatsAppClient({
-  accessToken: process.env.WHATSAPP_ACCESS_TOKEN!,
-  phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID!,
-  graphApiVersion: process.env.META_GRAPH_API_VERSION ?? 'v23.0',
-})
+const whatsapp =
+  process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID
+    ? new WhatsAppClient({
+        accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+        phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+        graphApiVersion: process.env.META_GRAPH_API_VERSION ?? 'v23.0',
+      })
+    : undefined
 const processedMessageIds = new Set<string>()
 const app = express()
 
+app.set('trust proxy', true)
+
 app.get('/health', (_request, response) => {
-  response.json({ status: 'ok', service: 'roamly-whatsapp-bot' })
+  response.json({
+    status: 'ok',
+    service: 'roamly-whatsapp-bot',
+    providers: {
+      meta: Boolean(whatsapp && verifyToken),
+      twilio: true,
+    },
+  })
 })
 
 app.get('/webhook', (request, response) => {
@@ -53,6 +55,11 @@ app.get('/webhook', (request, response) => {
 })
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (request, response) => {
+  if (!whatsapp) {
+    response.sendStatus(503)
+    return
+  }
+
   const rawBody = request.body as Buffer
   const signature = request.header('x-hub-signature-256')
 
@@ -75,7 +82,41 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (request, respon
   })
 })
 
+app.post(
+  '/twilio/webhook',
+  express.urlencoded({ extended: false }),
+  (request, response) => {
+    const params = request.body as Record<string, string>
+    const signature = request.header('x-twilio-signature')
+    const requestUrl =
+      twilioWebhookUrl ||
+      `${request.protocol}://${request.get('host')}${request.originalUrl}`
+
+    if (
+      twilioAuthToken &&
+      !validateTwilioRequest(twilioAuthToken, signature, requestUrl, params)
+    ) {
+      response.sendStatus(401)
+      return
+    }
+
+    const from = params.From
+    const body = params.Body
+    if (!from || !body) {
+      response.sendStatus(400)
+      return
+    }
+
+    const replies = conversations.handle(from, body, params.ProfileName)
+    response.type('text/xml').send(createTwilioResponse(replies))
+  },
+)
+
 async function processWebhook(payload: WhatsAppWebhook): Promise<void> {
+  if (!whatsapp) {
+    return
+  }
+
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
