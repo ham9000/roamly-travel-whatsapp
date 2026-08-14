@@ -9,6 +9,7 @@
     "lint": "oxlint src server",
     "preview": "vite preview",
     "bot:dev": "tsx watch server/index.ts",
+    "bot:simulate": "tsx server/simulator.ts",
     "bot:start": "node dist-server/index.js",
     "test": "tsx --test server/**/*.test.ts",
     "build:web": "tsc -b tsconfig.app.json tsconfig.node.json && vite build",

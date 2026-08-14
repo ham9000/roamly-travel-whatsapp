@@ -54,6 +54,16 @@ This requires the official Meta WhatsApp Cloud API. A normal personal WhatsApp n
 
 5. Confirm the bot is running at `http://localhost:3000/health`.
 
+## Test the conversation locally
+
+Run the interactive terminal simulator:
+
+```bash
+npm run bot:simulate
+```
+
+Type `PLAN`, `EXPLORE`, `HUMAN`, or any answer requested by the bot. Type `exit` to close the simulator. This exercises the same `ConversationManager` used by the Meta and Twilio webhook integrations, but it does not connect to WhatsApp.
+
 ## Connect the bot to WhatsApp
 
 1. Create or open an app at [Meta for Developers](https://developers.facebook.com/apps).
@@ -131,6 +141,7 @@ Never commit `.env` or any Meta access token. The repository ignores local envir
 | --- | --- |
 | `npm run dev` | Start the travel website |
 | `npm run bot:dev` | Start the bot backend with automatic reload |
+| `npm run bot:simulate` | Chat with the bot locally in the terminal |
 | `npm run bot:start` | Run the compiled bot backend |
 | `npm run test` | Run conversation-flow tests |
 | `npm run build` | Build the website and bot |
