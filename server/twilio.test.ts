@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createTwilioResponse, formatTwilioReply } from './twilio.js'
+import { formatTwilioReply, sendTwilioReplies } from './twilio.js'
 
 test('turns WhatsApp buttons into text commands for the Twilio sandbox', () => {
   const message = formatTwilioReply({
@@ -18,11 +18,23 @@ test('turns WhatsApp buttons into text commands for the Twilio sandbox', () => {
   assert.match(message, /HUMAN — Talk to a person/)
 })
 
-test('creates valid TwiML with escaped message text', () => {
-  const xml = createTwilioResponse([
-    { type: 'text', body: 'Trips & travel <made easy>' },
-  ])
+test('sends replies through the Twilio Messages API', async () => {
+  const messages: Array<{ body: string; from: string; to: string }> = []
 
-  assert.match(xml, /^<\?xml version="1.0" encoding="UTF-8"\?><Response>/)
-  assert.match(xml, /Trips &amp; travel &lt;made easy&gt;/)
+  await sendTwilioReplies(
+    async (message) => {
+      messages.push(message)
+    },
+    'whatsapp:+15550000001',
+    'whatsapp:+15550000002',
+    [{ type: 'text', body: 'Welcome to Roamly' }],
+  )
+
+  assert.deepEqual(messages, [
+    {
+      body: 'Welcome to Roamly',
+      from: 'whatsapp:+15550000001',
+      to: 'whatsapp:+15550000002',
+    },
+  ])
 })

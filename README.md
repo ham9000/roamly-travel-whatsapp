@@ -86,42 +86,27 @@ This requires the official Meta WhatsApp Cloud API. A normal personal WhatsApp n
 
 Meta provides a temporary test number and token during development. For production, add and verify a business phone number and replace the temporary token with a permanent system-user access token.
 
-## Test with Twilio WhatsApp Sandbox
+## Twilio WhatsApp integration
 
-Twilio's Sandbox provides end-to-end phone testing without registering a production business number.
+The `/twilio/webhook` endpoint receives Twilio's form-encoded webhook and sends replies through Twilio's Messages API.
 
-1. Create a Twilio trial account and open **Messaging → Try it out → Send a WhatsApp message**.
-2. Activate the Sandbox, then scan its QR code or send the displayed `join ...` message from your WhatsApp.
-3. Keep the bot running:
-
-   ```bash
-   npm run bot:dev
-   ```
-
-4. Keep ngrok running in a second terminal:
-
-   ```bash
-   ngrok http 3000
-   ```
-
-5. In Twilio's **Try out WhatsApp** screen, select **Inbound**. Choose the custom webhook option and enter:
-
-   ```text
-   https://your-ngrok-domain.ngrok-free.app/twilio/webhook
-   ```
-
-   Use HTTP `POST` if Twilio asks for the method.
-
-6. Copy the **Auth Token** from the Twilio Console into `.env`, and set the exact webhook URL:
+1. Configure Twilio credentials:
 
    ```env
+   TWILIO_ACCOUNT_SID=your-twilio-account-sid
    TWILIO_AUTH_TOKEN=your-twilio-auth-token
    TWILIO_WEBHOOK_URL=https://your-ngrok-domain.ngrok-free.app/twilio/webhook
    ```
 
-7. Restart `npm run bot:dev`, then send `hello` to the Twilio Sandbox number. The Sandbox uses text commands instead of buttons: `PLAN`, `EXPLORE`, `HUMAN`, and `MENU`.
+2. Run the bot and an HTTPS tunnel, then configure Twilio's inbound webhook as:
 
-When the ngrok domain changes, update both Twilio's webhook field and `TWILIO_WEBHOOK_URL`.
+   ```text
+   POST https://your-ngrok-domain.ngrok-free.app/twilio/webhook
+   ```
+
+3. The Twilio integration uses text commands instead of buttons: `PLAN`, `EXPLORE`, `HUMAN`, and `MENU`.
+
+Twilio's current free **Try out WhatsApp** trial can invoke a custom webhook, but it does not support direct TwiML responses and restricts outbound messages to Twilio-provided templates. As a result, it cannot run this dynamic conversation end-to-end on the free trial. The endpoint is intended for an upgraded Twilio account that can send free-form WhatsApp session messages through the Messages API.
 
 ## Environment variables
 
@@ -133,6 +118,7 @@ When the ngrok domain changes, update both Twilio's webhook field and `TWILIO_WE
 | `WHATSAPP_PHONE_NUMBER_ID` | Meta identifier for the sending number |
 | `META_APP_SECRET` | Validates that webhook requests came from Meta |
 | `META_GRAPH_API_VERSION` | Graph API version enabled for the Meta app |
+| `TWILIO_ACCOUNT_SID` | Twilio account identifier used by the Messages API |
 | `TWILIO_AUTH_TOKEN` | Validates incoming Twilio Sandbox webhooks |
 | `TWILIO_WEBHOOK_URL` | Exact public Twilio webhook URL used for validation |
 | `PORT` | Backend HTTP port; defaults to `3000` |

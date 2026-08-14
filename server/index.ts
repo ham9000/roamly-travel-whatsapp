@@ -3,17 +3,19 @@ import dotenv from 'dotenv'
 import express from 'express'
 import { ConversationManager } from './conversation.js'
 import {
-  createTwilioResponse,
+  sendTwilioReplies,
   validateTwilioRequest,
 } from './twilio.js'
 import type { IncomingMessage, WhatsAppWebhook } from './types.js'
 import { WhatsAppClient } from './whatsapp.js'
+import twilio from 'twilio'
 
 dotenv.config()
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10)
 const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN ?? ''
 const appSecret = process.env.META_APP_SECRET ?? ''
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID ?? ''
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? ''
 const twilioWebhookUrl = process.env.TWILIO_WEBHOOK_URL ?? ''
 const conversations = new ConversationManager()
@@ -26,6 +28,10 @@ const whatsapp =
       })
     : undefined
 const processedMessageIds = new Set<string>()
+const twilioClient =
+  twilioAccountSid && twilioAuthToken
+    ? twilio(twilioAccountSid, twilioAuthToken)
+    : undefined
 const app = express()
 
 app.set('trust proxy', true)
@@ -36,7 +42,7 @@ app.get('/health', (_request, response) => {
     service: 'roamly-whatsapp-bot',
     providers: {
       meta: Boolean(whatsapp && verifyToken),
-      twilio: true,
+      twilio: Boolean(twilioClient),
     },
   })
 })
@@ -85,7 +91,15 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (request, respon
 app.post(
   '/twilio/webhook',
   express.urlencoded({ extended: false }),
-  (request, response) => {
+  async (request, response) => {
+    if (!twilioClient || !twilioAuthToken) {
+      console.error(
+        'Twilio webhook received, but TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are not configured.',
+      )
+      response.sendStatus(503)
+      return
+    }
+
     const params = request.body as Record<string, string>
     const signature = request.header('x-twilio-signature')
     const requestUrl =
@@ -101,14 +115,26 @@ app.post(
     }
 
     const from = params.From
+    const to = params.To
     const body = params.Body
-    if (!from || !body) {
+    if (!from || !to || !body) {
       response.sendStatus(400)
       return
     }
 
     const replies = conversations.handle(from, body, params.ProfileName)
-    response.type('text/xml').send(createTwilioResponse(replies))
+    try {
+      await sendTwilioReplies(
+        (message) => twilioClient.messages.create(message),
+        to,
+        from,
+        replies,
+      )
+      response.sendStatus(204)
+    } catch (error: unknown) {
+      console.error('Failed to send Twilio WhatsApp reply:', error)
+      response.sendStatus(502)
+    }
   },
 )
 
